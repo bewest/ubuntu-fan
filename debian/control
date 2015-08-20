@@ -1,0 +1,17 @@
+Source: ubuntu-fan
+Section: admin
+Priority: optional
+Maintainer: Andy Whitcroft <apw@ubuntu.com>
+Build-Depends: debhelper (>= 9), dh-systemd
+Standards-Version: 3.9.6
+
+Package: ubuntu-fan
+Architecture: all
+Depends: bridge-utils, iproute2 (> 3.12.0-2ubuntu1~), dnsmasq-base, ${misc:Depends}
+Description: Ubuntu FAN network support enablement
+ Install this package to enable the Ubuntu FAN network support.
+ .
+ FAN is an IP over IP tunnel protocol which does network range remapping.
+ .
+ This package contains the init scripts and example configuration
+ for Ubuntu FAN.

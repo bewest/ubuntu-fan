@@ -1,0 +1,21 @@
+ubuntu-fan (0.3.0~14.04.1) trusty; urgency=low
+
+  * Add fanctl control program in preparation for v3 kernel bits.
+    (LP: #1470091)
+  * Add fanctl.8 manual page.
+  * Fix dnsmasq except-interface specification to fan-*.
+  * Loosen iproute2 dependancy to allow test builds to match.
+  * debian/ubuntu-fan.postinst: add post install conversion of previous
+    configuration to /etc/network/fan.
+  * debian/control: switch depends: to dnsmasq-base to prevent installation
+    of the system daemon when not needed.
+  * Update the README to better describe use cases and to point to external
+    resources.
+
+ -- Andy Whitcroft <apw@ubuntu.com>  Mon, 06 Jul 2015 23:04:40 +0100
+
+ubuntu-fan (0.1) vivid; urgency=low
+
+  * Initial Release.  (LP: #1439706)
+
+ -- Andy Whitcroft <apw@ubuntu.com>  Wed, 01 Epr 2015 14:41:25 +0100

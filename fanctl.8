@@ -1,0 +1,234 @@
+.TH FANCTL 8 "June 19, 2015" "" ""
+.SH NAME
+fanctl \- fan bridge administration
+.SH SYNOPSIS
+.BR "fanctl up|down <overlay> <underlay> [<options>...]"
+.br
+.BR "fanctl up|down -a"
+.br
+.BR "fanctl down -e"
+.br
+.BR "fanctl show"
+.\"
+.SH DESCRIPTION
+.B fanctl
+is used to set up, tear down, and inspect Fan bridge mappings and
+devices in the linux kernel.
+.PP
+A network fan is a mechanism for expanding the range of IP addresses
+available to a system.  It is most useful for containers such as Docker
+and LXC/LXD, but it can be used in other contexts as well.  Fan works
+by creating a bridge that uses a mathematical mapping between the host's
+(or underlay's) /16 address and the fan's (or overlay's) /8 address. By
+mapping addresses in this way, a 253-fold increase in address space can
+be achieved.  For example, if the host machine uses a subnet of 172.16.0.0/16
+and assigns a fan to an IP address of 172.16.3.4, the fan's overlay addresses
+will be in the 10.3.4.0/24, where 10 is derived from the user defined
+overlay network prefix.
+.\"
+.SH COMMAND SYNTAX
+.TP
+.B fanctl up <overlay> <underlay> [<options>]
+sets up a new Fan bridge mapping
+.B overlay
+addresses to the corresponding
+.B underlay addresses on the local network.  Using the example, the new
+bridge is named
+.I fan-10-3-4
+based on the overlay and underlay addresses specified (see ADDRESSING below).
+The
+.B options
+are described in the OPTIONS section below.
+.\"
+.TP
+.B fanctl down <overlay> <underlay>
+tears down a previous set up Fan bridge and associated mapping.  This
+will fail if the bridge is still in use.
+.TP
+.B fanctl up -a
+sets up all Fans defined in /etc/network/fan if present.
+.\"
+.TP
+.B fanctl down -a
+tears down all automatically defined Fan bridges on the system.  These may
+be identified in the
+.I fanctl show
+output via the
+.I auto
+flag.
+.\"
+.TP
+.B fanctl down -e
+tears down all defined Fan bridges on the system.
+.\"
+.TP
+.B fanctl show
+lists all currently defined Fan bridges in the system:
+.PP
+.nf
+.RS
+$ fanctl show
+Bridge       Overlay      Underlay       Flags
+fan-10-3-4   10.0.0.0/8   172.16.3.4/16  dhcp host-reserve 1
+$
+.RE
+.fi
+.\"
+.SH ADDRESSING
+The Fan mapping is defined by a combination of the
+.B underlay
+and
+.B overlay
+addresses.  Each is defined as a CIDR network address.  For
+example:
+.PP
+.nf
+.RS
+$ fanctl up 10.0.0.0/8 172.16.3.4/16
+.RE
+.fi
+.PP
+This defines an overlay of
+.I 10.0.0.0/8
+and an underlay of
+.I 172.16.3.4.
+.\"
+When mapping an address in the 10.0.0.0/8 subnet, we will
+take the 16 bits of destination address starting at bit 8 and
+replace the bottom 16 bits of the underlay address with it.  For
+example attempting to talk to 10.3.4.15 will trigger the packet
+to be sent to 172.16.3.4 for delivery.
+.SH LIMITATIONS
+Currently we are only able to apply overlay addresses with a /8
+network mask, and underlay addresses with a /16 network mask.  We
+expect to relax this limitation in a later update.
+.\"
+.SH OPTIONS
+.\"
+.TP
+.B dhcp
+turns on automatic address allocation for the Fan bridge.  A dnsmasq
+instance is started attached to the bridge allocating the unreserved
+addresses to entities attached to the Fan bridge.
+.\"
+.TP
+.B host-reserve <count>
+by default the .1 address on the Fan bridge is allocated to the host
+allowing it to communicate with entities on the Fan bridge.  This option
+allows further addresses to be reserved for host applications to
+bind to.  A
+.I host-reserve 4
+reserves .1 through .4 in the Fan bridge for host use.
+.\"
+.TP
+.B bridge <name>
+by default the bridge name is based on the overlay and underlay addresses
+specified (see ADDRESSING above), override to a specific name.
+.\"
+.TP
+.B off
+this option prevents the Fan bridge from being configured.  This is primarily
+used to allow Fan mappings to be defined but disabled in
+.I /etc/network/fan
+(See PERSISTANT CONFIGURATION below).
+.\"
+.SH FAN BRIDGES
+Each Fan bridge represents a slice of a Fan overlay network which is
+expressed locally on the machine.  The Fan bridge will have the overlay
+addresses representing one local IP address mapped to it.  A machine
+may have more than one local address on the underlay network allowing it
+to have more than one such slice mapped.  It may also have more than one
+overlay range defined for each local IP address.
+.PP
+Each fan bridge is a separate broadcast domain, with routing between the
+bridges both locally and globally within the Fan.
+.PP
+Each fan bridge appears as a bridge on the system, named for the overlay
+subnet hosted by that particular fan bridge and the underlay address
+prefix for which is carries traffic.  For our
+.I 10.0.0.0/8
+on
+.I 172.16.3.4
+example the bridge would be named
+.I fan-10-3-4
+and would carry all traffic for
+.I 10.3.4.0/24
+\.
+.SH PERSISTANT CONFIGURATION
+There are two main ways to configure Fan bridges.  Firstly via
+.I /etc/network/interfaces
+and secondly via
+.I /etc/network/fan
+\.
+.PP
+Fan bridges are configured in /etc/network/interfaces using the
+up and down command callouts:
+.PP
+.nf
+.RS
+iface eth0 dhcp
+        up fanctl up 10.0.0.0/8 eth0/16 dhcp
+        down fanctl down 10.0.0.0/8 eth0/16
+.RE
+.ni
+.PP
+Fan bridges are configured in /etc/network/fan by listing overlay, underlay,
+and flag combinations.  For example:
+.PP
+.nf
+.RS
+# fan 10
+10.0.0.0/8 172.16.3.4/16 dhcp
+10.0.0.0/8 172.16.3.5/16 dhcp off
+# fan 241
+241.0.0.0/8 172.16.3.4/16 dhcp
+241.0.0.0/8 172.16.3.5/16 dhcp
+.RE
+.ni
+.PP
+Note that comments are introduced via a hash (#) in the first column, and blank
+lines are ignored.
+.\"
+.SH USE WITH LXC/LXD
+Once the Fan bridges are configured, LXC/LXD is typically configured to
+use a specific fan device by either creating a new configuration template
+with the appropriate bridge specifiers, or by modifying the default
+configuration template similarly.  Configure the bridge and MTU as below:
+.PP
+.nf
+.RS
+lxc.network.link = fan-10-3-4
+lxc.network.mtu = 1480
+.RE
+.ni
+.PP
+To change the default template apply these changes to /etc/lxc/default.conf.
+.SH USE WITH DOCKER
+Once the Fan bridges are configured (and docker installed), edit
+/etc/default/docker.io, adding:
+.PP
+.nf
+.RS
+DOCKER_OPTS="-d -b fan-10-3-4 --mtu=1480 --iptables=false"
+.RE
+.ni
+.PP
+And then restart docker.io:
+.PP
+.nf
+.RS
+sudo service docker.io restart
+.RE
+.ni
+.PP
+Docker instances will now use the specified fan.  Note that currently
+only one Fan bridge and subnet may be used at a time with a running
+docker instance.
+.\"
+.SH SEE ALSO
+.BR /usr/share/doc/ubuntu-fan/README
+.br
+.BR http://www.ubuntu.com/fan
+.\"
+.SH AUTHOR
+Andy Whitcroft <apw@canonical.com>

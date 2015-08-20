@@ -1,0 +1,3 @@
+fan-net /usr/lib/ubuntu-fan
+ubuntu-fan /etc/dnsmasq.d
+fanctl /usr/sbin

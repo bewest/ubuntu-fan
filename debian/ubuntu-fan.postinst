@@ -1,0 +1,64 @@
+#!/bin/sh
+set -e
+
+success()
+{
+	rm -f /etc/default/ubuntu-fan
+	exit 0
+}
+
+migrate_config()
+{
+	# If we have not already made a new style configuration, attempt to convert
+	# the old.
+	if [ -f /etc/network/fan ]; then
+		return
+	fi
+
+	if [ ! -f /etc/default/ubuntu-fan ]; then
+		return
+	fi
+	. /etc/default/ubuntu-fan
+
+	echo "Migrating Ubuntu Fan configuration from /etc/default/ubuntu-fan to /etc/network/fan"
+
+	# If disabled nothing to convert.
+	if [ -z "${FAN_OVERLAY}" ]; then
+		success
+	fi
+
+	# If we have no FAN_BRIDGE then nothing to do.
+	if [ -z "${FAN_BRIDGE}" ]; then
+		success
+	fi
+
+	# If we have a FAN_PRIMARY_ADDR then we will use that address as underlay.
+	if [ ! -z "${FAN_PRIMARY_ADDR}" ]; then
+		FAN_UNDERLAY="${FAN_PRIMARY_ADDR}/16"
+
+	elif [ ! -z "${FAN_PRIMARY}" ]; then
+		FAN_UNDERLAY="${FAN_PRIMARY}/16"
+
+	else
+		FAN_UNDERLAY="default/16"
+	fi
+
+	cat - <<EOM >/etc/network/fan
+# Automatically converted from /etc/default/ubuntu-fan at `date`
+# dnsmasq configuration created in /etc/dnsmasq.d/ubuntu-fan-migrated
+${FAN_OVERLAY} ${FAN_UNDERLAY} dhcp bridge ${FAN_BRIDGE}
+EOM
+	cat - <<EOM >/etc/dnsmasq.d/ubuntu-fan-migrated
+# Automatically converted from /etc/default/ubuntu-fan at `date`
+${FAN_BRIDGE}
+EOM
+	success
+}
+
+case "$1" in
+configure)
+	if dpkg --compare-versions "$2" lt-nl "0.3.0~"; then
+		migrate_config
+	fi
+	;;
+esac

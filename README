@@ -1,0 +1,80 @@
+FAN README
+==========
+
+The fan is a mechanism for expanding the range of IP addresses
+available to a system. It's most useful for containers such as Docker
+and LXC/LXD, but it can be used in other contexts as well. Fan works by
+creating a bridge that uses a mathematical mapping between the host's
+(or underlay's) /16 address and the fan's (or overlay's) /8 address. By
+mapping addresses in this way, a 253-fold increase in address space can
+be achieved. Specifically, if the host machine uses a subnet of X.Y.0.0/16
+and assigns a fan to an IP address of X.Y.a.b, the fan's overlay addresses
+will be in the Z.a.b.0/24, where Z is user-selectable.
+
+For instance, take a machine with an IP address of 172.16.3.4; for an
+overlay of 10.0.0.0/8, it will map that address to 10.3.4.0/24:
+
+        172.16.3.4 -> 10.3.4.0/24
+
+Using Fan
+---------
+
+A fan-specific control program, fanctl, controls all creation,
+configuration, and tear-down of fan bridges and their associated
+mappings. This program is invoked to create and destroy fan
+bridges on demand, either from the command line or more likely from
+/etc/network/interfaces (see Persistent Configuration referenced at
+http://www.ubuntu.com/fan):
+
+        sudo fanctl up 10.0.0.0/8 172.16.3.4/16
+        sudo fanctl down 10.0.0.0/8 172.16.3.4/16
+
+It is possible to specify whether a fan subnet has manual or automatic
+address allocation, which determines whether there is a dnsmasq configured
+on this fan subnet. The up command can take options to express this:
+
+        sudo fanctl up 10.0.0.0/8 172.16.3.4/16 dhcp
+
+For the above fan overlay, a bridge device named "fan-10-3-4" is created to
+host the fan subnet for the specified portion of the fan overlay network.
+
+Using Fan with Docker
+---------------------
+
+After configuring the fan as described above, install the docker packages,
+then edit /etc/default/docker.io, adding:
+
+        DOCKER_OPTS="-d -b fan-10-3-4 --mtu=1480 --iptables=false"
+
+And then restart docker.io:
+
+        sudo service docker.io restart
+
+At this point, a docker instance started via, e.g.,
+
+        docker run -it ubuntu:latest
+
+This will be run within the specified fan overlay network. Currently only
+one fan network subnet may be used with a running docker instance.
+
+Picking Your Address Ranges
+---------------------------
+
+Of course, in order for this system to work, you must have a /8 address
+range you're willing to sacrifice. The 10.0.0.0/8 address range can be used
+in this way *IF* you don't need it for anything else; or you can pick a
+/8 range you're willing to sacrifice from the list maintained by the IANA:
+
+  http://www.iana.org/assignments/ipv4-address-space/ipv4-address-space.xhtml
+
+Note that the 0.0.0.0/8, 127.0.0.0/8 and 224.0.0.0/4 (IP multicast)
+address ranges will not function as fan overlay networks.
+
+The 240.0.0.0/8 through 254.0.0.0/8 ranges are excellent candidates,
+as they're currently unused by anything else.
+
+For more information
+--------------------
+
+More information on the fan, including more detailed configuration
+information, can be found at http://www.ubuntu.com/fan.
